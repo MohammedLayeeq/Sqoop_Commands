@@ -1,0 +1,516 @@
+-----------------------------------------------------
+		MYSQL COMMANDS
+-----------------------------------------------------
+
+How to install mysql:
+-----------------------------------------------------
+sudo apt-get install mysql-server mysql-client
+
+
+How to un-install mysql:
+-----------------------------------------------------
+sudo apt-get autoremove mysql-server mysql-client
+
+
+How to start mysql:
+-----------------------------------------------------
+sudo service mysql start
+
+
+How to stop mysql:
+-----------------------------------------------------
+sudo service mysql stop
+
+
+How to connect to mysql:
+-----------------------------------------------------
+mysql -u root -p
+
+
+Export the data from `mysql database` to `sql file`
+-----------------------------------------------------
+mysqldump -u root -p layeeq > /home/bigdata/work/sqoop_inputs/layeeq.sql
+mysqldump -u root -p sqoop > /home/bigdata/work/sqoop_inputs/sqoop.sql
+
+
+Import the data from `sql file` to `mysql database`
+-----------------------------------------------------
+create database layeeq;
+create database sqoop;
+
+mysql -u root -p layeeq < /home/bigdata/work/sqoop_inputs/layeeq.sql
+mysql -u root -p sqoop < /home/bigdata/work/sqoop_inputs/sqoop.sql
+
+
+-----------------------------------------------------
+		SQOOP COMMANDS
+-----------------------------------------------------
+
+VERIFY MYSQL DATA USING `SQOOP`
+-----------------------------------------------------
+sqoop list-databases \
+  --connect "jdbc:mysql://localhost:3306" \
+  --username root \
+  --password hadoop
+
+sqoop list-tables \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop
+
+sqoop eval \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop \
+  --query "select count(1) from order_items"
+
+sqoop eval \
+  --options-file /home/bigdata/work/sqoop_inputs/connection_details.txt \
+  --query "show tables"
+  
+sqoop eval \
+  --options-file /home/bigdata/work/sqoop_inputs/connection_details.txt \
+  --query "select * from student limit 5"
+  
+sqoop codegen \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop \
+  --table order_items
+
+
+IMPORT DATA FROM `RDBMS` TO `HDFS`
+-----------------------------------------------------
+sqoop import-all-tables \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username=root \
+  --password=hadoop \
+  --warehouse-dir=/sqoop/import-all-data/layeeq.db \
+  --exclude-tables customers,order_items,orders,products
+
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/sqoop" \
+  --username=root \
+  --password=hadoop \
+  --table pet \
+  --as-textfile \
+  --target-dir=/sqoop/import-data/sqoop.db/pet_m \
+  -m 1
+ 
+sqoop import --options-file /home/bigdata/work/sqoop_inputs/connection_details.txt \
+  --table pet \
+  --as-textfile \
+  --target-dir=/sqoop/import-data/sqoop.db/pet_n \
+  -m 1
+
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/sqoop" \
+  --username=root \
+  --password=hadoop \
+  --table pet \
+  --as-sequencefile \
+  --target-dir=/sqoop/import-data/sqoop.db/pet_split_by \
+  --split-by name
+
+
+SQOOP SUPPORTS DIFFERENT STORAGE OPTIONS
+-----------------------------------------------------
+--as-textfile
+--as-sequencefile
+--as-avrodatafile
+--as-parquetfile
+
+Note:
+-------
+1. Bydefault storage option is `text file`
+2. Bydefault field separator is `,`
+3. Bydefault no.of mappers is `4`
+
+
+
+IMPORT DATA USING `boundary-query`, `columns` and `delete-target-dir`
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/sqoop" \
+  --username=root \
+  --password=hadoop \
+  --table student \
+  --target-dir /sqoop/boundary-data/sqoop.db/student \
+  --delete-target-dir \
+  --boundary-query "select 1, 10 from student limit 1" \
+  --columns id,name,class \
+  -m 1
+
+
+IMPORT DATA USING `boundary-query`, `append`,
+`fields-terminated-by`, `lines-terminated-by`
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/sqoop" \
+  --username=root \
+  --password=hadoop \
+  --table student \
+  --target-dir /sqoop/boundary-data/sqoop.db/student \
+  --boundary-query "select 11, 20 from student limit 1" \
+  --append \
+  --fields-terminated-by '|' \
+  --lines-terminated-by '\n' \
+  --num-mappers 1 \
+  --outdir java_files
+
+
+IMPORT DATA USING `split-by`, `append`,
+`fields-terminated-by`, `lines-terminated-by`
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/sqoop" \
+  --username=root \
+  --password=hadoop \
+  --table student \
+  --target-dir /sqoop/boundary-data/sqoop.db/student \
+  --append \
+  --fields-terminated-by ',' \
+  --lines-terminated-by '\n' \
+  --split-by id \
+  --outdir java_files
+
+
+IMPORT DATA USING `query`, `split-by`, 
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username=root \
+  --password=hadoop \
+  --query="select * from orders join order_items on orders.order_id = order_items.order_item_order_id where \$CONDITIONS" \
+  --target-dir /sqoop/join-data/layeeq.db/order_join \
+  --split-by order_id \
+  --num-mappers 2
+  
+
+
+Note:
+----------------
+`Sqoop Import` operation with `Query` Tag, your `Query Tag` must and should ends with `$CONDITIONS` keyword
+
+`Sqoop Eval` operation with `Query` Tag, your `Query Tag` not required to ends with `$CONDITIONS` keyword
+
+
+IMPORT DATA USING `where`, `num-mappers`, `delete-target-dir`,
+`fields-terminated-by`, `lines-terminated-by`
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/sqoop" \
+  --username=root \
+  --password=hadoop \
+  --table student \
+  --target-dir /sqoop/data/sqoop.db/student \
+  --delete-target-dir \
+  --fields-terminated-by '|' \
+  --lines-terminated-by '\n' \
+  --num-mappers 1 \
+  --where "id <= 10" \
+  --outdir java_files \
+  --mapreduce-job-name normcities
+
+
+IMPORT DATA USING `incremental`, `last-value`, `query`,
+`append`, `fields-terminated-by`, `lines-terminated-by`
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/sqoop" \
+  --username=root \
+  --password=hadoop \
+  --target-dir /sqoop/data/sqoop.db/student \
+  --query="select * from student where id <= 20 and \$CONDITIONS" \
+  --append \
+  --num-mappers 1 \
+  --fields-terminated-by '|' \
+  --lines-terminated-by '\n' \
+  --check-column "id" \
+  --incremental append \
+  --last-value 10 \
+  --outdir java_files
+
+
+`SQOOP JOB` EXAMPES
+-----------------------------------------------------
+sqoop job --list
+
+sqoop job --show myjob1
+
+sqoop job --exec myjob1
+
+sqoop job --delete myjob1
+
+
+HOW TO CREATE `SQOOP JOB`
+-----------------------------------------------------
+sqoop job --create myjob1 \
+  -- list-databases \
+  --connect "jdbc:mysql://localhost:3306" \
+  --username root \
+  --password hadoop
+
+sqoop job --create myjob2 \
+  -- list-tables \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop
+
+
+-----------------------------------------------------
+Connect to mysql and create database for reporting database
+-----------------------------------------------------
+mysql -u root -p
+
+// create new table with schema & data
+create table layeeq.departments1 as select * from layeeq.departments;
+
+// create new table with schema
+create table layeeq.departments2 like layeeq.departments;
+
+exit;
+
+
+-----------------------------------------------------
+EXPORT DATA FROM `HDFS` TO `RDBMS TABLE`
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username=root \
+  --password=hadoop \
+  --table departments1 \
+  --target-dir=/sqoop/layeeq.db/departments \
+  --delete-target-dir \
+  --fields-terminated-by ',' \
+  --lines-terminated-by '\n' \
+  --as-textfile \
+  --num-mappers 1
+
+sqoop export \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop \
+  --table departments2 \
+  --export-dir /sqoop/layeeq.db/departments \
+  --input-fields-terminated-by ',' \
+  --input-lines-terminated-by '\n' \
+  --num-mappers 1 \
+  --batch \
+  --outdir java_files
+
+
+-----------------------------------------------------
+HOW TO WRITE `eval` & `merge` QUERIES USING SQOOP
+-----------------------------------------------------
+
+1. UPDATE DATA IN `RDBMS TABLE`
+-----------------------------------------------------
+sqoop eval --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop \
+  --query "update departments1 set department_name='updated' where department_id = 7"
+
+
+2. INSERT DATA IN `RDBMS TABLE`
+-----------------------------------------------------
+sqoop eval --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop \
+  --query "insert into departments1 values (8, 'inserted')"
+
+
+3. READ DATA FROM `RDBMS TABLE`
+-----------------------------------------------------
+sqoop eval --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop \
+  --query "select * from departments1"
+
+
+4. IMPORT DATA FROM `RDBMS TABLE` TO `HDFS`
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username=root \
+  --password=hadoop \
+  --table departments1 \
+  --as-textfile \
+  --num-mappers 1 \
+  --target-dir=/sqoop/layeeq.db/departments_delta \
+  --where "department_id >= 7" \
+  --bindir java_files \
+  --outdir java_files
+
+
+5. IMPORT DATA FROM `RDBMS TABLE` TO `HDFS`
+-----------------------------------------------------
+sqoop merge --merge-key department_id \
+  --new-data /sqoop/layeeq.db/departments_delta \
+  --onto /sqoop/layeeq.db/departments \
+  --target-dir /sqoop/layeeq.db/departments_stage \
+  --class-name departments1 \
+  --jar-file <get_it_from_last_import>
+
+sqoop merge --merge-key department_id \
+  --new-data /sqoop/layeeq.db/departments_delta \
+  --onto /sqoop/layeeq.db/departments \
+  --target-dir /sqoop/layeeq.db/departments_stage \
+  --class-name departments1 \
+  --jar-file java_files/departments1.jar
+
+
+6. DELETE DATA FROM `HDFS`
+-----------------------------------------------------
+hadoop fs -rm -R /sqoop/layeeq.db/departments_delta
+
+
+7. EXPORT DATA FROM `HDFS` TO `RDBMS TABLE` with 'update-mode'
+-----------------------------------------------------
+sqoop export \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop \
+  --table departments2 \
+  --export-dir /sqoop/layeeq.db/departments_stage \
+  --update-key department_id \
+  --update-mode updateonly \
+  --outdir java_files \
+  --batch \
+  --num-mappers 1
+
+
+sqoop export \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username root \
+  --password hadoop \
+  --table departments2 \
+  --export-dir /sqoop/layeeq.db/departments_stage \
+  --update-key department_id \
+  --update-mode allowinsert \
+  --outdir java_files \
+  --batch \
+  --num-mappers 1
+
+
+
+Integrate SQOOP with HIVE
+------------------------------------------------
+copy 'hive-site.xml' file from '$HIVE_HOME/conf' folder to '$SQOOP_HOME/conf' folder
+
+
+IMPORT ALL TABLES FROM `RDBMS` TO `HIVE` WITH COMPRESSION
+----------------------------------------------------------------------------
+sqoop import-all-tables \
+  --connect "jdbc:mysql://localhost:3306/sqoop" \
+  --username=root \
+  --password=hadoop \
+  --hive-import \
+  --hive-overwrite \
+  --create-hive-table \
+  --warehouse-dir=/sqoop/hive_data/sqoop.db \
+  --compress \
+  --compression-codec org.apache.hadoop.io.compress.BZip2Codec \
+  --num-mappers 1 \
+  --outdir java_files
+
+
+VERIFY ALL TABLES IN HIVE 'default' DATABASE
+-----------------------------------------------------
+USE default;
+
+SHOW TABLES;
+
+SELECT * FROM pet;
+
+
+
+IMPORT DATA FROM `RDBMS` TO `HIVE`
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username=root \
+  --password=hadoop \
+  --table orders \
+  --fields-terminated-by '|' \
+  --lines-terminated-by '\n' \
+  --hive-import \
+  --hive-overwrite \
+  --hive-table myorders1 \
+  --outdir java_files
+
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username=root \
+  --password=hadoop \
+  --table orders \
+  --fields-terminated-by '|' \
+  --lines-terminated-by '\n' \
+  --hive-import \
+  --create-hive-table \
+  --hive-table myorders2 \
+  --outdir java_files
+
+
+
+CREATE HIVE TABLE WITH AVRO STORAGE OPTION
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/layeeq" \
+  --username=root \
+  --password=hadoop \
+  --table categories \
+  --as-avrodatafile \
+  --target-dir=/sqoop/data/layeeq.db/categories \
+  -m 1
+
+
+hadoop fs -put categories.avsc /sqoop/data/layeeq.db
+
+CREATE EXTERNAL TABLE categories
+STORED AS avro
+LOCATION '/sqoop/data/layeeq.db/categories'
+TBLPROPERTIES ('avro.schema.url'='hdfs://localhost:8020/sqoop/data/layeeq.db/categories.avsc');
+
+SELECT * FROM categories;
+
+
+
+IMPORT DATA FROM `RDBMS` TO `HBASE`
+-----------------------------------------------------
+sqoop import \
+  --connect "jdbc:mysql://localhost:3306/sqoop" \
+  --username=root \
+  --password=hadoop \
+  --table student \
+  --hbase-create-table \
+  --hbase-table student \
+  --column-family cf \
+  --hbase-row-key id \
+  --outdir java_files \
+  -m 1
+
+
+(Note: hadoop-2.6.0, hbase-1.1.2, sqoop-1.4.6 are not compatible)
+
+(Note: hadoop-2.6.0, hbase-0.98.4, sqoop-1.4.6 are compatible)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
